@@ -1,0 +1,15 @@
+requests
+python-dotenv
+pillow
+tqdm
+numpy
+moviepy
+ffmpeg-python
+imageio
+imageio-ffmpeg
+pathvalidate
+pyyaml
+httpx
+google-auth-oauthlib
+google-auth-oauthlib[pyopenssl]
+google-api-python-client
