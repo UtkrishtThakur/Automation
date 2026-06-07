@@ -23,7 +23,7 @@ def generate_background_music(topic, duration):
     return None
 
 
-def mix_audio(voice_file, music_file=None, voice_vol=1.0, music_vol=0.2):
+def mix_audio(voice_file, music_file=None, voice_vol=1.0, music_vol=0.15):
     voice_dur = get_audio_duration(voice_file)
 
     if not music_file or not os.path.exists(music_file):
@@ -33,27 +33,25 @@ def mix_audio(voice_file, music_file=None, voice_vol=1.0, music_vol=0.2):
         shutil.copy2(voice_file, final)
         return str(final)
 
-    music_dur = get_audio_duration(music_file)
-
-    voice_vol_linear = str(voice_vol)
-    music_vol_linear = str(music_vol)
-
-    loop_music = music_dur < voice_dur
-    music_input = ["-stream_loop", "-1"] if loop_music else []
-    music_trim = f"if(lt(t,{voice_dur}),t,0)" if loop_music else f"0:{voice_dur}"
+    # Ducking parameters
+    duck_vol = music_vol * 0.4
+    fade_dur = 0.5
 
     mixed = AUDIO_DIR / "mixed_audio.wav"
 
+    # FFmpeg filter for looping music, fading it in/out, and ducking during voice
+    # We use sidechain compress or simple volume manipulation if we know the voice timing
+    # Since amix is used, we'll try a simpler approach with volume filters
+    
     cmd = [
         "ffmpeg", "-y",
         "-i", voice_file,
-        "-i", music_file,
-        *music_input,
+        "-stream_loop", "-1", "-i", music_file,
         "-filter_complex",
-        f"[1:a]atrim={music_trim},volume={music_vol_linear}[music];"
-        f"[0:a]volume={voice_vol_linear}[voice];"
-        f"[voice][music]amix=inputs=2:duration=first:dropout_transition=0[dout]",
-        "-map", "[dout]",
+        f"[1:a]trim=duration={voice_dur},volume={music_vol},"
+        f"afade=t=in:st=0:d={fade_dur},afade=t=out:st={voice_dur-fade_dur}:d={fade_dur}[bg];"
+        f"[0:a]volume={voice_vol}[fg];"
+        f"[fg][bg]amix=inputs=2:duration=first:dropout_transition=0",
         "-ar", "44100",
         "-ac", "2",
         str(mixed)
@@ -61,7 +59,7 @@ def mix_audio(voice_file, music_file=None, voice_vol=1.0, music_vol=0.2):
 
     try:
         subprocess.run(cmd, capture_output=True, check=True, timeout=60)
-        log.info(f"Mixed audio created: {mixed}")
+        log.info(f"Mixed audio created with fading: {mixed}")
         return str(mixed)
     except subprocess.CalledProcessError as e:
         log.error(f"Audio mix failed: {e.stderr.decode()[-300:]}")

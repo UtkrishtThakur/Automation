@@ -5,50 +5,30 @@ from app.core.logger import setup_logging
 
 log = setup_logging("script_generator")
 
-SCRIPT_TEMPLATE = """You are a world-class educational video scriptwriter.
-Your style is inspired by Kurzgesagt, Veritasium, and VSauce.
+SCRIPT_TEMPLATE = """You are a world-class educational video scriptwriter for channels like Veritasium, Kurzgesagt, and YouTube Shorts.
+Your goal is to create a high-retention, curiosity-driven script for a 25-30 second video.
 
 Topic: {topic}
 
-Write a script for a 45-90 second narrated educational video using EXACTLY this format:
+STRUCTURE:
+1. HOOK (0-3s): Start with a mind-bending question or a "did you know" that creates immediate curiosity. No "Hey guys" or intros.
+2. EXPLANATION (Scenes 2-7): Build the story progressively. Use simple but profound analogies. Avoid lists and robotic language.
+3. PAYOFF (Final Scene): Deliver a memorable conclusion or a thought-provoking statement.
 
+FORMAT:
 SCENE 1
-VISUAL: cinematic description of what appears on screen
-VOICEOVER: narration text spoken by the narrator
+VISUAL: [Detailed description: camera angle, subject, environment, lighting, mood, color palette]
+VOICEOVER: [15-20 words of high-impact narration]
 
-SCENE 2
-VISUAL: cinematic description of what appears on screen
-VOICEOVER: narration text spoken by the narrator
+...repeat for 6-8 scenes...
 
-SCENE 3
-VISUAL: cinematic description of what appears on screen
-VOICEOVER: narration text spoken by the narrator
-
-SCENE 4
-VISUAL: cinematic description of what appears on screen
-VOICEOVER: narration text spoken by the narrator
-
-SCENE 5
-VISUAL: cinematic description of what appears on screen
-VOICEOVER: narration text spoken by the narrator
-
-SCENE STRUCTURE:
-- SCENE 1 = HOOK: A curiosity-driven opening that grabs attention immediately with a surprising fact or question
-- SCENE 2 = EXPLANATION PART 1: Introduce the core concept clearly with visual analogy
-- SCENE 3 = EXPLANATION PART 2: Go deeper with real data or mechanism
-- SCENE 4 = WOW FACT: Include a real statistic, data point, or jaw-dropping fact with numbers
-- SCENE 5 = CURIOSITY ENDING: End with an open question or thought-provoking statement
-
-STRICT RULES:
-- Write EXACTLY 5 scenes
-- Each VOICEOVER must be 15-30 words for optimal TTS pacing (45-90 seconds total)
-- Each VISUAL must describe a single cinematic, visually striking image
-- Include specific real-world facts, statistics, or scientific data
-- Tone: calm, educational, authoritative yet curious
-- NO stage directions, sound effects, music cues, or meta-commentary
-- NO introductions or conclusions outside the 5-scene format
-- VOICEOVER text must flow naturally when read aloud
-- Do NOT use markdown formatting, asterisks, or special characters"""
+STRICTURES:
+- TOTAL WORD COUNT: 120-160 words (Targeting 25-30 seconds at calm pace).
+- SCENE COUNT: Exactly 6-8 scenes.
+- TONE: Calm, dramatic, authoritative, yet deeply curious.
+- STYLE: Narrative storytelling, not textbook explanation.
+- NO markdown, no stage directions, no meta-commentary.
+- Every VOICEOVER must flow naturally into the next."""
 
 
 def call_ollama(prompt, max_tokens=512):
@@ -107,8 +87,8 @@ def validate_script(script):
 
     log.info(f"Script validation: {voiceover_count} VOICEOVER lines, {visual_count} VISUAL lines")
 
-    if voiceover_count < 5 or visual_count < 5:
-        log.error(f"Script validation FAILED: {voiceover_count}V/{visual_count}W (need 5+ each)")
+    if voiceover_count < 6 or visual_count < 6:
+        log.error(f"Script validation FAILED: {voiceover_count}V/{visual_count}W (need 6-8 each)")
         return False
     return True
 
@@ -123,7 +103,7 @@ def generate_script(topic, topic_override=None):
 
     if not validate_script(script):
         log.warning("Primary script validation failed, attempting regeneration...")
-        raw2 = call_ollama(prompt + "\n\nIMPORTANT: Return ONLY the 5-scene script in the exact format shown. No commentary.", max_tokens=1024)
+        raw2 = call_ollama(prompt + "\n\nIMPORTANT: Return ONLY the 6-8 scene script in the exact format shown. No commentary.", max_tokens=1024)
         script = clean_script(raw2)
         if not validate_script(script):
             raise RuntimeError("Script generation validation failed twice")

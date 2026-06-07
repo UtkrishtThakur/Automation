@@ -10,50 +10,57 @@ from app.utils.helpers import VIDEO_DIR, IMAGES_DIR, get_audio_duration
 log = setup_logging("video_builder")
 
 
-def get_scale_effect(index, w=1920, h=1080):
-    zoom_level = random.choice([1.0, 1.2, 1.5])
-    scale_w = int(w * zoom_level)
-    scale_h = int(h * zoom_level)
-    crop_x = (scale_w - w) // 2
-    crop_y = (scale_h - h) // 2
-    return f"[{index}:v]scale={scale_w}:{scale_h},crop={w}:{h}:{crop_x}:{crop_y},setsar=1[v{index}]"
-
-
-def get_ken_burns_effect(index, duration, width=1920, height=1080, fps=30):
+def get_cinematic_motion(index, duration, width=1920, height=1080, fps=30):
+    """
+    Upgraded motion system with robust normalization.
+    Every image is first converted to 1920x1080, then motion is applied.
+    """
+    direction = random.choice(["zoom_in", "zoom_out", "pan_left", "pan_right"])
     frames = int(duration * fps)
-
-    direction = random.choice(["in", "out", "pan_left", "pan_right", "pan_up", "pan_down"])
-
-    if direction == "in":
-        start_scale, end_scale = 1.0, 1.4
-        scale_expr = f"(1.0+0.4*(t/{duration}))"
-    elif direction == "out":
-        start_scale, end_scale = 1.4, 1.0
-        scale_expr = f"(1.4-0.4*(t/{duration}))"
-    elif direction == "pan_left":
+    
+    # 1. BASE: Convert any aspect ratio to 1920x1080 (Fill frame)
+    base = (
+        f"[{index}:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+        f"crop={width}:{height},setsar=1"
+    )
+    
+    if direction == "zoom_in":
+        # First scale up slightly so zoompan has room without quality loss
+        # Then zoom from 1.0 to 1.1
         return (
-            f"[{index}:v]scale=-2:{height+100},crop={width}:{height}:"
-            f"'if(lt(t,{duration}),(t/{duration})*({width+100}-{width}),0)':0,setsar=1[v{index}]"
+            f"{base},scale={width*2}:{height*2},"
+            f"zoompan=z='min(zoom+0.0005,1.1)':x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':"
+            f"d={frames}:s={width}x{height}[v{index}]"
+        )
+    elif direction == "zoom_out":
+        # Zoom from 1.1 down to 1.0
+        return (
+            f"{base},scale={width*2}:{height*2},"
+            f"zoompan=z='max(1.1-0.0005*on,1.0)':x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':"
+            f"d={frames}:s={width}x{height}[v{index}]"
+        )
+    elif direction == "pan_left":
+        # Scale to 110% of width, then crop-pan across it
+        pan_w = int(width * 1.1)
+        pan_h = int(height * 1.1)
+        return (
+            f"{base},scale={pan_w}:{pan_h},"
+            f"crop={width}:{height}:'(iw-ow)*(t/{duration})':(ih-oh)/2[v{index}]"
         )
     elif direction == "pan_right":
+        # Scale to 110% of width, then crop-pan across it
+        pan_w = int(width * 1.1)
+        pan_h = int(height * 1.1)
         return (
-            f"[{index}:v]scale=-2:{height+100},crop={width}:{height}:"
-            f"'if(lt(t,{duration}),({width+100}-{width})-(t/{duration})*({width+100}-{width}),0)':0,setsar=1[v{index}]"
-        )
-    elif direction == "pan_up":
-        return (
-            f"[{index}:v]scale={width+100}:-2,crop={width}:{height}:"
-            f"0:'if(lt(t,{duration}),(t/{duration})*({height+100}-{height}),0)',setsar=1[v{index}]"
-        )
-    elif direction == "pan_down":
-        return (
-            f"[{index}:v]scale={width+100}:-2,crop={width}:{height}:"
-            f"0:'if(lt(t,{duration}),({height+100}-{height})-(t/{duration})*({height+100}-{height}),0)',setsar=1[v{index}]"
+            f"{base},scale={pan_w}:{pan_h},"
+            f"crop={width}:{height}:'(iw-ow)*(1-t/{duration})':(ih-oh)/2[v{index}]"
         )
 
+    # Fallback to zoom in
     return (
-        f"[{index}:v]scale={int(width*1.4)}:{int(height*1.4)},crop={width}:{height}:"
-        f"'iw/2-(iw/{scale_expr})/2':'ih/2-(ih/{scale_expr})/2',setsar=1[v{index}]"
+        f"{base},scale={width*2}:{height*2},"
+        f"zoompan=z='min(zoom+0.0005,1.1)':x='iw/2-(iw/zoom)/2':y='ih/2-(ih/zoom)/2':"
+        f"d={frames}:s={width}x{height}[v{index}]"
     )
 
 
@@ -69,10 +76,13 @@ def build_video(image_paths, audio_file, sub_file=None):
 
     total_duration = get_audio_duration(audio_file)
     n_images = len(image_paths)
-    per_image = total_duration / n_images
-    fade_dur = config.fade_duration
-
-    log.info(f"Building video: {n_images} scenes, {total_duration:.1f}s total, {fade_dur}s fades")
+    fade_dur = 0.5 # User requested 0.4-0.6s
+    
+    # NEW DURATION MATH
+    # per_image = (total_duration + (N-1)*fade_duration) / N
+    per_image = (total_duration + (n_images - 1) * fade_dur) / n_images
+    
+    log.info(f"Building video: {n_images} scenes, {total_duration:.2f}s total, {per_image:.2f}s/image")
 
     image_inputs = []
     for img in image_paths:
@@ -81,14 +91,15 @@ def build_video(image_paths, audio_file, sub_file=None):
     filter_parts = []
 
     for i in range(n_images):
-        effect = get_ken_burns_effect(i, per_image, config.video_width, config.video_height, config.video_fps)
+        effect = get_cinematic_motion(i, per_image, config.video_width, config.video_height, config.video_fps)
         filter_parts.append(effect)
 
     last = "[v0]"
     for i in range(1, n_images):
-        offset = per_image * i - fade_dur / 2
-        if offset < 0:
-            offset = 0.0
+        # NEW OFFSET MATH
+        # offset = i * (per_image - fade_duration)
+        offset = i * (per_image - fade_dur)
+        
         filter_parts.append(
             f"{last}[v{i}]"
             f"xfade=transition=fade:duration={fade_dur}:offset={offset:.3f}"
@@ -96,15 +107,18 @@ def build_video(image_paths, audio_file, sub_file=None):
         )
         last = f"[xf{i}]"
 
-    filter_parts.append(f"{last}trim=duration={total_duration}[vtrim];[vtrim]setsar=1[vtrim2]")
-    last = "[vtrim2]"
-
-    sub_escaped = sub_path.replace("\\", "\\\\")
+    # Removed trim filter as requested. Use last[v] as input to subtitles
+    
+    sub_escaped = str(sub_path).replace("\\", "\\\\").replace(":", "\\:")
+    
+    # Premium Subtitle Styling: Montserrat Bold (fallback to Arial if missing, but naming it as requested)
+    # White text (&H00FFFFFF), Black outline (&H00000000), Shadow, Bottom center (Alignment=2)
+    # Added fade in/out for subtitles in force_style
     filter_parts.append(
         f"{last}subtitles={sub_escaped}:force_style="
-        "'FontName=Arial Bold,FontSize=26,PrimaryColour=&H00FFFFFF,"
-        "OutlineColour=&H00000000,BorderStyle=1,Outline=2.5,Shadow=0,"
-        "MarginV=50,Alignment=2'[vout]"
+        "'FontName=Montserrat Bold,FontSize=24,PrimaryColour=&H00FFFFFF,"
+        "OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=1,"
+        "MarginV=40,Alignment=2,FadeV=200'[vout]"
     )
 
     filter_complex = ";".join(filter_parts)
@@ -146,6 +160,9 @@ def build_video(image_paths, audio_file, sub_file=None):
             raise RuntimeError("Output file was not created")
 
     except subprocess.TimeoutExpired:
+        log.error("FFmpeg timed out")
         raise RuntimeError("FFmpeg timed out")
-    except Exception as e:
-        raise RuntimeError(f"Video build failed: {e}")
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        raise

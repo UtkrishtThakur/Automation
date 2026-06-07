@@ -6,14 +6,14 @@ from app.core.logger import setup_logging
 log = setup_logging("topic_generator")
 
 def generate_topics(n=5):
-    prompt = f"""Generate {n} unique educational video topic ideas.
+    prompt = f"""Generate {n} unique, highly visual educational video topic ideas.
 
 Requirements:
-- Each topic must be curiosity-driven and surprising
-- Suitable for a 45-90 second narrated educational video
-- Should involve real-world science, history, psychology, nature, or technology
-- Must be specific enough to explain with facts and data
-- Should feel like a Kurzgesagt or Veritasium video title
+- Each topic must be curiosity-driven, mind-bending, or surprising.
+- Examples: "Why black holes are invisible", "What if Earth stopped spinning?", "How GPS proves Einstein right".
+- Topics must be SPECIFIC and visually suggest cinematic science illustrations.
+- Style: Veritasium, Kurzgesagt, or TED-Ed.
+- Avoid boring, dry, or textbook subjects.
 
 Return ONLY a numbered list of topic titles, one per line.
 No extra text or commentary."""

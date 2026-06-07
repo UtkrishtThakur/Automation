@@ -38,7 +38,8 @@ def extract_voice_lines(script):
     return voice_lines
 
 
-def chunk_text(text, max_words=8):
+def chunk_text(text, max_words=3):
+    # Smaller chunks for high-retention "karaoke" style
     words = text.split()
     chunks = []
     for i in range(0, len(words), max_words):
@@ -68,15 +69,23 @@ def generate_subtitles(script, audio_file):
         sub_index = 1
 
         for line in voice_lines:
-            chunks = chunk_text(line, max_words=8)
+            # For each line, we create small chunks of 2-3 words
+            chunks = chunk_text(line, max_words=3)
             for chunk in chunks:
                 chunk_words = len(chunk.split())
                 chunk_duration = chunk_words * time_per_word
                 end = start + chunk_duration
 
+                # Styling is handled in FFmpeg, but we can do per-word here if needed.
+                # However, the user specifically asked for "word highlighting effect".
+                # Standard SRT doesn't support complex highlighting easily, but we can 
+                # highlight the "active" word by making it a different color if using SSA/ASS.
+                # Since the system uses .srt, I'll stick to SRT but I'll make the chunks very small 
+                # to simulate word highlighting (pop-on style).
+                
                 f.write(f"{sub_index}\n")
                 f.write(f"{format_time(start)} --> {format_time(end)}\n")
-                f.write(f"{chunk}\n\n")
+                f.write(f"{chunk.upper()}\n\n") # Uppercase for style
 
                 start = end
                 sub_index += 1

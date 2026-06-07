@@ -4,9 +4,8 @@ from app.core.logger import setup_logging
 log = setup_logging("scene_planner")
 
 CINEMATIC_SUFFIX = (
-    ", cinematic lighting, dramatic atmosphere, ultra detailed, "
-    "8k resolution, photorealistic, professional cinematography, "
-    "award-winning documentary style"
+    ", cinematic lighting, science illustration, high detail, "
+    "consistent colors, no text, no watermark, no logo, no blur"
 )
 
 
@@ -41,12 +40,11 @@ def plan_scenes(script):
 
 
 def _build_scene(visual, voiceover):
+    # The visual already contains a lot of detail from the new template
     description = visual.rstrip(".")
 
-    if len(description) > 150:
-        description = description[:147] + "..."
-
-    prompt = description + CINEMATIC_SUFFIX
+    # Ensure character/style consistency keywords are present
+    prompt = f"{description}{CINEMATIC_SUFFIX}"
 
     return {
         "description": description,

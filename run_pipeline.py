@@ -308,10 +308,9 @@ def main():
     except KeyboardInterrupt:
         print("\n\nPipeline interrupted by user")
         sys.exit(130)
-    except Exception as e:
-        print(f"\n\nPIPELINE FAILED: {e}")
-        if args.debug:
-            traceback.print_exc()
+    except Exception:
+        print("\n\nPIPELINE FAILED")
+        traceback.print_exc()
         sys.exit(1)
 
 

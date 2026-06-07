@@ -20,12 +20,20 @@ def build_headers():
     }
 
 
-def optimize_prompt(prompt, max_len=180):
+def optimize_prompt(prompt, max_len=400):
+    """
+    Redesigns prompt to focus on:
+    Subject, Environment, Lighting, Color palette, Camera, Mood, Art style.
+    """
     prompt = prompt.replace("VISUAL:", "").strip()
     prompt = re.sub(r"\s+", " ", prompt)
+    
+    # Consistency keywords are already appended by scene_planner.py via CINEMATIC_SUFFIX
+    # Here we just ensure it's not too long and potentially add "low quality" avoidance
     if len(prompt) > max_len:
         prompt = prompt[:max_len-3].rstrip(".") + "..."
-    return f"{prompt}, cinematic lighting, highly detailed, dramatic atmosphere"
+        
+    return prompt
 
 
 import re
